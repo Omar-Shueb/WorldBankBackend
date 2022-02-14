@@ -66,8 +66,8 @@ async function postAccount(server) {
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
     await db.query(
-      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES (?, ?, ?, datetime('now'), datetime('now'), FALSE)",
-      [username, passwordEncrypted, salt]
+      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES (?, ?, datetime('now'), datetime('now'), FALSE)",
+      [username, passwordEncrypted]
     );
     return server.json({ success: true }, 200);
   } catch (error) {
