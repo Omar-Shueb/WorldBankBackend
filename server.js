@@ -4,7 +4,7 @@ import { abcCors } from "https://deno.land/x/cors/mod.ts";
 import * as bcrypt from "https://deno.land/x/bcrypt/mod.ts";
 import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
-const db = new DB("users.db");
+const db = new DB("./schema/users.db");
 const app = new Application();
 const PORT = 8080;
 
