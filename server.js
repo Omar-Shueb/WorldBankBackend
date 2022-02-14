@@ -34,13 +34,13 @@ async function postLogin(server) {
         .query("SELECT id, username, password_encrypted FROM users WHERE username = ?", [username])
         .asObjects()),
     ];
-    // evaluates to true or false if the passwords match using bcrypt.compare as this accounts for salt.
+    // evaluates to true or false if the passwords match using bcrypt.compares.
     const authenticated = await bcrypt.compare(password, response.password_encrypted);
 
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
-      await db.query("INSERT INTO sessions (id, user_id, created_at) VALUES (?, ?, datetime('now'))", [
+      await db.query("INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))", [
         sessionId,
         response.id,
       ]);
