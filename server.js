@@ -6,9 +6,7 @@ import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
 import { Client } from "https://deno.land/x/postgres@v0.11.3/mod.ts";
 
-const client = new Client(
-  "postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar"
-);
+const client = new Client("postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar");
 await client.connect();
 
 const db = new DB("./schema/users.db");
@@ -17,14 +15,8 @@ const app = new Application();
 const PORT = 8080;
 
 const corsConfig = abcCors({
-  origin: "*",
-  allowedHeaders: [
-    "Authorization",
-    "Content-Type",
-    "Accept",
-    "Origin",
-    "User-Agent",
-  ],
+  origin: true,
+  allowedHeaders: ["Authorization", "Content-Type", "Accept", "Origin", "User-Agent"],
   credentials: true,
 });
 
@@ -34,7 +26,6 @@ app
   .post("/createaccount", (server) => postAccount(server))
   .get("/search", (server) => searchByCountry(server))
   .get("/indicators", getDistinctIndicators)
-  .get("/test", test)
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -43,43 +34,31 @@ async function postLogin(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json(
-        { success: false, error: "Need to include a username and password" },
-        400
-      );
+      return server.json({ success: false, error: "Need to include a username and password" }, 400);
     }
     // Get the users password stored in the database.
     const [response] = [
       ...(await db
-        .query(
-          "SELECT id, username, password_encrypted FROM users WHERE username = ?",
-          [username]
-        )
+        .query("SELECT id, username, password_encrypted FROM users WHERE username = ?", [username])
         .asObjects()),
     ];
     // evaluates to true or false if the passwords match using bcrypt.compares.
-    const authenticated = await bcrypt.compare(
-      password,
-      response.password_encrypted
-    );
+    const authenticated = await bcrypt.compare(password, response.password_encrypted);
 
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
-      await db.query(
-        "INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))",
-        [sessionId, response.id]
-      );
+      await db.query("INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))", [
+        sessionId,
+        response.id,
+      ]);
       server.setCookie({
         name: "sessionId",
         value: sessionId,
       });
       return server.json({ success: true }, 200);
     } else {
-      return server.json(
-        { success: false, error: "Username and Password are incorrect" },
-        400
-      );
+      return server.json({ success: false, error: "Username and Password are incorrect" }, 400);
     }
   } catch (error) {
     return server.json({ success: false, error: error }, 500);
@@ -90,10 +69,7 @@ async function postAccount(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json(
-        { success: false, error: "Need to include a username and password" },
-        400
-      );
+      return server.json({ success: false, error: "Need to include a username and password" }, 400);
     }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
@@ -109,53 +85,36 @@ async function postAccount(server) {
 }
 
 async function searchByCountry(server) {
-  const { CountryName, IndicatorName, Year } = await server.body;
-  // const { CountryName, Year } = await server.body;
-  console.log(CountryName);
-  if (CountryName && IndicatorName && Year) {
-    const result = (
-      await client.queryObject(
-        `SELECT Value FROM Indicators WHERE CountryName = $1 AND IndicatorName = $2 AND Year = $3`,
-        [CountryName, IndicatorName, Year]
-      )
-    ).rows;
+  const { country, indicator, year } = await server.body;
 
-    console.log(result);
-    return server.json(result, 200);
-  } else if (CountryName && IndicatorName && !Year) {
-    console.log(IndicatorName);
-    const result = (
-      await client.queryObject(
-        `SELECT Year, Value FROM Indicators WHERE CountryName = $1 AND IndicatorName = $2 `,
-        [CountryName, IndicatorName]
-      )
-    ).rows;
-
-    return server.json(result, 200);
-  } else if (CountryName && !IndicatorName && !Year) {
-    const result = (
-      await client.queryObject(
-        `SELECT IndicatorName, Year, Value FROM Indicators WHERE CountryName = $1  `,
-        [`${CountryName}`]
-      )
-    ).rows;
-
-    console.log(CountryName);
-    return server.json(result, 200);
+  if (country && indicator && year) {
+    console.log(country, indicator, year);
+    const queryCountry = `'${country}'`;
+    const queryIndicator = `'${indicator}'`;
+    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry} AND indicatorname = ${queryIndicator} AND year = ${year}`;
+    // maybe add descontruct ...
+    const response = await client.queryObject(query);
+    const rows = response.rows;
+    return server.json(rows, 200);
+  } else if (country && indicator && !year) {
+    const queryCountry = `'${country}'`;
+    const queryIndicator = `'${indicator}'`;
+    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry} AND indicatorname = ${queryIndicator}`;
+    const response = await client.queryObject(query);
+    const rows = response.rows;
+    return server.json(rows, 200);
+  } else if (country && !indicator && !year) {
+    const queryCountry = `'${country}'`;
+    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry}`;
+    const response = await client.queryObject(query);
+    const rows = response.rows;
+    return server.json(rows, 200);
   } else {
-    return server.json(404);
+    return server.json(400);
   }
-}
-async function test(server) {
-  const stories = (
-    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
-  ).rows;
-  console.log(stories);
 }
 
 async function getDistinctIndicators(server) {
-  const stories = (
-    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
-  ).rows;
+  const stories = (await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")).rows;
   server.json(stories, 200);
 }
