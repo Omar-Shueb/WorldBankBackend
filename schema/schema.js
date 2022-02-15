@@ -23,4 +23,13 @@ try {
   user_id INTEGER NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 )`);
+
+  await db.query(`CREATE TABLE history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  country_name TEXT NOT NULL,
+  indicator TEXT,
+  year INTEGER,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+)`);
 }
