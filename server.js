@@ -85,14 +85,12 @@ async function postAccount(server) {
 }
 
 async function searchByCountry(server) {
-  const { country, indicator, year } = await server.body;
-
+  const { country, indicator, year } = await server.queryParams;
   if (country && indicator && year) {
     console.log(country, indicator, year);
     const queryCountry = `'${country}'`;
     const queryIndicator = `'${indicator}'`;
     const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry} AND indicatorname = ${queryIndicator} AND year = ${year}`;
-    // maybe add descontruct ...
     const response = await client.queryObject(query);
     const rows = response.rows;
     return server.json(rows, 200);
