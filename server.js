@@ -33,6 +33,7 @@ app
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
   .get("/search", (server) => searchByCountry(server))
+  .get("/indicators", getDistinctIndicators)
   .get("/test", test)
   .start({ port: PORT });
 
@@ -147,9 +148,14 @@ async function searchByCountry(server) {
 }
 async function test(server) {
   const stories = (
-    await client.queryObject(
-      "SELECT IndicatorName, Year, Value FROM Indicators WHERE CountryName = 'Angola'"
-    )
+    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
   ).rows;
   console.log(stories);
+}
+
+async function getDistinctIndicators(server) {
+  const stories = (
+    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
+  ).rows;
+  server.json(stories, 200);
 }
