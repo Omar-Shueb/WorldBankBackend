@@ -30,10 +30,9 @@ const corsConfig = abcCors({
 
 app
   .use(corsConfig)
+  .get("/search", (server) => searchByCountry(server))
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
-  .get("/search", (server) => searchByCountry(server))
-  .get("/indicators", getDistinctIndicators)
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -111,11 +110,11 @@ async function searchByCountry(server) {
   // get params from the url queries
   const { country, indicator, year } = await server.queryParams;
   // construct the query depending on which parameters are present
-  const countryQuery = ` WHERE countryname = '${country}'`;
+  const countryQuery = ` WHERE countrycode = '${country}'`;
   let indicatorQuery = "";
   let yearQuery = "";
   if (indicator) {
-    indicatorQuery = ` AND indicatorname = '${indicator}'`;
+    indicatorQuery = ` AND indicatorcode = '${indicator}'`;
   }
   if (year) {
     yearQuery = ` AND year = ${year}`;
@@ -132,22 +131,4 @@ async function searchByCountry(server) {
   } else {
     return server.json(400);
   }
-}
-
-async function getDistinctIndicators(server) {
-  const indicators = (
-    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
-  ).rows;
-
-  let format = [];
-  indicators.forEach((indicator) => {
-    console.log(Object.keys(indicator)[0]);
-    let newFormat = {
-      value: indicator["indicatorname"],
-      label: indicator["indicatorname"],
-    };
-    format.push(newFormat);
-  });
-  console.log(format);
-  server.json(format, 200);
 }
