@@ -6,9 +6,7 @@ import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
 import { Client } from "https://deno.land/x/postgres@v0.11.3/mod.ts";
 
-const client = new Client(
-  "postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar"
-);
+const client = new Client("postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar");
 await client.connect();
 
 const db = new DB("./schema/users.db");
@@ -18,13 +16,7 @@ const PORT = 8080;
 
 const corsConfig = abcCors({
   origin: true,
-  allowedHeaders: [
-    "Authorization",
-    "Content-Type",
-    "Accept",
-    "Origin",
-    "User-Agent",
-  ],
+  allowedHeaders: ["Authorization", "Content-Type", "Accept", "Origin", "User-Agent"],
   credentials: true,
 });
 
@@ -34,6 +26,7 @@ app
   .post("/createaccount", (server) => postAccount(server))
   .get("/search", (server) => searchByCountry(server))
   .get("/indicators", getDistinctIndicators)
+  .get("/session", (server) => getSession(server))
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -42,43 +35,31 @@ async function postLogin(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json(
-        { success: false, error: "Need to include a username and password" },
-        400
-      );
+      return server.json({ success: false, error: "Need to include a username and password" }, 400);
     }
     // Get the users password stored in the database.
     const [response] = [
       ...(await db
-        .query(
-          "SELECT id, username, password_encrypted FROM users WHERE username = ?",
-          [username]
-        )
+        .query("SELECT id, username, password_encrypted FROM users WHERE username = ?", [username])
         .asObjects()),
     ];
     // evaluates to true or false if the passwords match using bcrypt.compares.
-    const authenticated = await bcrypt.compare(
-      password,
-      response.password_encrypted
-    );
+    const authenticated = await bcrypt.compare(password, response.password_encrypted);
 
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
-      await db.query(
-        "INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))",
-        [sessionId, response.id]
-      );
+      await db.query("INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))", [
+        sessionId,
+        response.id,
+      ]);
       server.setCookie({
         name: "sessionId",
         value: sessionId,
       });
       return server.json({ success: true }, 200);
     } else {
-      return server.json(
-        { success: false, error: "Username and Password are incorrect" },
-        400
-      );
+      return server.json({ success: false, error: "Username and Password are incorrect" }, 400);
     }
   } catch (error) {
     return server.json({ success: false, error: error }, 500);
@@ -89,10 +70,7 @@ async function postAccount(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json(
-        { success: false, error: "Need to include a username and password" },
-        400
-      );
+      return server.json({ success: false, error: "Need to include a username and password" }, 400);
     }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
@@ -122,10 +100,7 @@ async function searchByCountry(server) {
   }
   if (country) {
     const query =
-      "SELECT countryname, indicatorname, year, value FROM Indicators" +
-      countryQuery +
-      indicatorQuery +
-      yearQuery;
+      "SELECT countryname, indicatorname, year, value FROM Indicators" + countryQuery + indicatorQuery + yearQuery;
     const response = await client.queryObject(query);
     const data = response.rows;
     return server.json(data, 200);
@@ -135,9 +110,7 @@ async function searchByCountry(server) {
 }
 
 async function getDistinctIndicators(server) {
-  const indicators = (
-    await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")
-  ).rows;
+  const indicators = (await client.queryObject("SELECT DISTINCT IndicatorName FROM Indicators;")).rows;
 
   let format = [];
   indicators.forEach((indicator) => {
@@ -149,4 +122,37 @@ async function getDistinctIndicators(server) {
   });
 
   server.json(format, 200);
+}
+
+async function getSession(server) {
+  try {
+    const id = await getCurrentUser(server);
+    console.log(id);
+    if (id) {
+      return server.json({ success: true }, 200);
+    } else {
+      return server.json({ success: false }, 400);
+    }
+  } catch (error) {
+    return server.json({ success: false }, 500);
+  }
+}
+
+async function getCurrentUser(server) {
+  try {
+    const { sessionId } = await await server.cookies;
+    if (sessionId) {
+      const [[user_id]] = [
+        ...(await db.query(
+          `SELECT user_id FROM sessions WHERE uuid = ? AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
+          [sessionId]
+        )),
+      ];
+      return user_id ? user_id : false;
+    } else {
+      return false;
+    }
+  } catch (error) {
+    return false;
+  }
 }
