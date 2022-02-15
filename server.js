@@ -141,13 +141,12 @@ async function getDistinctIndicators(server) {
 
   let format = [];
   indicators.forEach((indicator) => {
-    console.log(Object.keys(indicator)[0]);
     let newFormat = {
       value: indicator["indicatorname"],
       label: indicator["indicatorname"],
     };
     format.push(newFormat);
   });
-  console.log(format);
+
   server.json(format, 200);
 }
