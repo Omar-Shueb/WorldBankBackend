@@ -85,28 +85,24 @@ async function postAccount(server) {
 }
 
 async function searchByCountry(server) {
+  // get params from the url queries
   const { country, indicator, year } = await server.queryParams;
-  if (country && indicator && year) {
-    console.log(country, indicator, year);
-    const queryCountry = `'${country}'`;
-    const queryIndicator = `'${indicator}'`;
-    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry} AND indicatorname = ${queryIndicator} AND year = ${year}`;
+  // construct the query depending on which parameters are present
+  const countryQuery = ` WHERE countryname = '${country}'`;
+  let indicatorQuery = "";
+  let yearQuery = "";
+  if (indicator) {
+    indicatorQuery = ` AND indicatorname = '${indicator}'`;
+  }
+  if (year) {
+    yearQuery = ` AND year = ${year}`;
+  }
+  if (country) {
+    const query =
+      "SELECT countryname, indicatorname, year, value FROM Indicators" + countryQuery + indicatorQuery + yearQuery;
     const response = await client.queryObject(query);
-    const rows = response.rows;
-    return server.json(rows, 200);
-  } else if (country && indicator && !year) {
-    const queryCountry = `'${country}'`;
-    const queryIndicator = `'${indicator}'`;
-    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry} AND indicatorname = ${queryIndicator}`;
-    const response = await client.queryObject(query);
-    const rows = response.rows;
-    return server.json(rows, 200);
-  } else if (country && !indicator && !year) {
-    const queryCountry = `'${country}'`;
-    const query = `SELECT countryname, indicatorname, year, value FROM Indicators WHERE countryname = ${queryCountry}`;
-    const response = await client.queryObject(query);
-    const rows = response.rows;
-    return server.json(rows, 200);
+    const data = response.rows;
+    return server.json(data, 200);
   } else {
     return server.json(400);
   }
