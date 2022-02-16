@@ -115,21 +115,37 @@ async function postAccount(server) {
 
 async function searchByCountry(server) {
   // get params from the url queries
-  const { country, indicator, year } = await server.queryParams;
+  const { country, indicator, year, yearEnd } = await server.queryParams;
   // construct the query depending on which parameters are present
 
   await addSearchToHistory(server, country, indicator, year);
   const countryQuery = ` WHERE countrycode = '${country}'`;
   let indicatorQuery = "";
   let yearQuery = "";
+
   if (indicator) {
     indicatorQuery = ` AND indicatorcode = '${indicator}'`;
   }
-  if (year) {
-    yearQuery = ` AND year = ${year}`;
+
+  if (year && !yearEnd) {
+    yearQuery = ` AND year BETWEEN ${year} AND 2015`;
   }
+
+  if (year && yearEnd) {
+    yearQuery = ` AND year BETWEEN ${year} AND ${yearEnd}`;
+  }
+
+  if (!year && yearEnd) {
+    yearQuery = ` AND year BETWEEN 1960 AND ${yearEnd}`;
+  }
+
   if (country) {
-    "SELECT countryname, indicatorname, year, value FROM Indicators" +
+
+  
+
+    const query =
+      "SELECT countryname, indicatorname, year, value FROM Indicators" +
+
       countryQuery +
       indicatorQuery +
       yearQuery;
@@ -146,12 +162,15 @@ async function addSearchToHistory(server, country, indicator, year) {
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
+
     const names = await getNamesFromCodes(country, indicator, year);
     const values = Object.values(names);
     console.log(values);
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, created_at, country_name, indicator_name) VALUES (?, ?, ?, ?, ?,?,?)`,
       [user_id, country, indicator, year, now, values[0], values[1]]
+
+
     );
   }
 }
