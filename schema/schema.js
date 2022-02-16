@@ -30,6 +30,7 @@ try {
   country_id TEXT NOT NULL,
   indicator_id TEXT,
   year INTEGER,
+  year_end INTEGER,
   created_at DATETIME NOT NULL,
   country_name TEXT NOT NULL,
   indicator_name TEXT NOT NULL,

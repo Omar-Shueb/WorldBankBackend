@@ -118,7 +118,7 @@ async function searchByCountry(server) {
   const { country, indicator, year, yearEnd } = await server.queryParams;
   // construct the query depending on which parameters are present
 
-  await addSearchToHistory(server, country, indicator, year);
+  await addSearchToHistory(server, country, indicator, year, yearEnd);
   const countryQuery = ` WHERE countrycode = '${country}'`;
   let indicatorQuery = "";
   let yearQuery = "";
@@ -140,12 +140,8 @@ async function searchByCountry(server) {
   }
 
   if (country) {
-
-  
-
     const query =
       "SELECT countryname, indicatorname, year, value FROM Indicators" +
-
       countryQuery +
       indicatorQuery +
       yearQuery;
@@ -158,30 +154,24 @@ async function searchByCountry(server) {
 }
 
 //adds the search to history table
-async function addSearchToHistory(server, country, indicator, year) {
-  const now = Date.now();
+async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-
-    const names = await getNamesFromCodes(country, indicator, year);
-    const values = Object.values(names);
+    const names = await getNamesFromCodes(country, indicator);
+    const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
     console.log(values);
     db.query(
-      `INSERT INTO history (user_id, country_id, indicator_id, year, created_at, country_name, indicator_name) VALUES (?, ?, ?, ?, ?,?,?)`,
-      [user_id, country, indicator, year, now, values[0], values[1]]
-
-
+      `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
+      [user_id, country, indicator, year, yearEnd, values[0], values[1]]
     );
   }
 }
-async function getNamesFromCodes(country_id, indicator_id, year) {
+async function getNamesFromCodes(country_id, indicator_id) {
   let query = `SELECT DISTINCT CountryName, IndicatorName FROM indicators WHERE CountryCode = '${country_id}'`;
   if (indicator_id) {
     query += `AND IndicatorCode = '${indicator_id}'`;
   }
-  if (year) {
-    query += `AND Year = '${year}'`;
-  }
+
   const response = await client.queryObject(query);
 
   return response.rows[0];
@@ -263,12 +253,11 @@ function sortIndicators(a, b) {
 async function getSearchHistory(server) {
   const user_id = await getCurrentUser();
 
-  console.log(user_id);
   if (user_id) {
     const history = [
       ...db
         .query(
-          `SELECT id , country_id , indicator_id , year, created_at , country_name, indicator_name from history where user_id = ? `,
+          `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
           [user_id]
         )
         .asObjects(),
