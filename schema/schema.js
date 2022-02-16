@@ -27,10 +27,12 @@ try {
   await db.query(`CREATE TABLE history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  country_name TEXT NOT NULL,
-  indicator TEXT,
+  country_id TEXT NOT NULL,
+  indicator_id TEXT,
   year INTEGER,
   created_at DATETIME NOT NULL,
+  country_name TEXT NOT NULL,
+  indicator_name TEXT NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 )`);
 }

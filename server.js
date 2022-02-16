@@ -129,8 +129,7 @@ async function searchByCountry(server) {
     yearQuery = ` AND year = ${year}`;
   }
   if (country) {
-    const query =
-      "SELECT countryname, indicatorname, year, value FROM Indicators" +
+    "SELECT countryname, indicatorname, year, value FROM Indicators" +
       countryQuery +
       indicatorQuery +
       yearQuery;
@@ -144,15 +143,30 @@ async function searchByCountry(server) {
 
 //adds the search to history table
 async function addSearchToHistory(server, country, indicator, year) {
-  console.log(country);
+  // console.log(country);
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
+    const names = await getNamesFromCodes(country, indicator, year);
+    const values = Object.values(names);
+    console.log(values);
     db.query(
-      `INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, ?)`,
-      [user_id, country, indicator, year, now]
+      `INSERT INTO history (user_id, country_id, indicator_id, year, created_at, country_name, indicator_name) VALUES (?, ?, ?, ?, ?,?,?)`,
+      [user_id, country, indicator, year, now, values[0], values[1]]
     );
   }
+}
+async function getNamesFromCodes(country_id, indicator_id, year) {
+  let query = `SELECT DISTINCT CountryName, IndicatorName FROM indicators WHERE CountryCode = '${country_id}'`;
+  if (indicator_id) {
+    query += `AND IndicatorCode = '${indicator_id}'`;
+  }
+  if (year) {
+    query += `AND Year = '${year}'`;
+  }
+  const response = await client.queryObject(query);
+
+  return response.rows[0];
 }
 async function getSession(server) {
   try {
@@ -228,19 +242,22 @@ function sortIndicators(a, b) {
   return a.indicatorname > b.indicatorname ? 1 : -1;
 }
 
-async function getSearchHistory() {
+async function getSearchHistory(server) {
   const user_id = await getCurrentUser();
   // const user_id = 1;
+  console.log(user_id);
   if (user_id) {
     const history = [
       ...db
         .query(
-          `SELECT history.id as history_id , history.country_name as country_id, history.indicator as indicator_id, history.year, history.created_at from history where user_id = ? `,
+          `SELECT id , country_id , indicator_id , year, created_at , country_name, indicator_name from history where user_id = ? `,
           [user_id]
         )
         .asObjects(),
     ];
+    // let serverResponse = [];
 
+    // console.log(serverResponse);
     server.json(history, 200);
   } else {
     server.json({ success: false }, 404);
