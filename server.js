@@ -35,6 +35,7 @@ app
   .post("/createaccount", (server) => postAccount(server))
   .get("/session", (server) => getSession(server))
   .patch("/session", (server) => patchSession(server))
+  .get("/history", (server) => getUserHistory(server))
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -185,7 +186,7 @@ async function patchSession(server) {
 
 async function getCurrentUser(server) {
   try {
-    const { sessionId } = await await server.cookies;
+    const { sessionId } = await server.cookies;
     if (sessionId) {
       const [[user_id]] = [
         ...(await db.query(
@@ -200,4 +201,13 @@ async function getCurrentUser(server) {
   } catch (error) {
     return false;
   }
+}
+
+async function getUserHistory(server) {
+  // const currentUser_id = await getCurrentUser(server);
+  // const currentUser_id = 1;
+  const userHistory = [
+    ...(await db.query(`SELECT * FROM history`).asObjects()),
+  ];
+  console.log(userHistory);
 }
