@@ -16,7 +16,6 @@ try {
   )`
   );
 
-  // const db = new DB('./votes.db')
   await db.query(`CREATE TABLE sessions (
   uuid TEXT PRIMARY KEY,
   created_at DATETIME NOT NULL,
@@ -30,6 +29,7 @@ try {
   country_name TEXT NOT NULL,
   indicator TEXT,
   year INTEGER,
+  created_at DATETIME NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 )`);
 }
