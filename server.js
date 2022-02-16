@@ -143,7 +143,6 @@ async function searchByCountry(server) {
 
 //adds the search to history table
 async function addSearchToHistory(server, country, indicator, year) {
-  // console.log(country);
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
@@ -244,7 +243,7 @@ function sortIndicators(a, b) {
 
 async function getSearchHistory(server) {
   const user_id = await getCurrentUser();
-  // const user_id = 1;
+
   console.log(user_id);
   if (user_id) {
     const history = [
@@ -255,9 +254,7 @@ async function getSearchHistory(server) {
         )
         .asObjects(),
     ];
-    // let serverResponse = [];
 
-    // console.log(serverResponse);
     server.json(history, 200);
   } else {
     server.json({ success: false }, 404);
