@@ -142,7 +142,7 @@ async function addSearchToHistory(server, country, indicator, year) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
     db.query(
-      `INSERT INTO history (user_id, country_name, indicator, year) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, datetime('now')`,
       [user_id, country, indicator, year]
     );
   }
