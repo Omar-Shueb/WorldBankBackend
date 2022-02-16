@@ -84,7 +84,10 @@ async function postLogin(server) {
       );
     }
   } catch (error) {
-    return server.json({ success: false, error: "Username and password not recognised" }, 400);
+    return server.json(
+      { success: false, error: "Username and password not recognised" },
+      400
+    );
   }
 }
 
@@ -227,14 +230,19 @@ function sortIndicators(a, b) {
 
 async function getSearchHistory() {
   const user_id = await getCurrentUser();
-  const history = [
-    ...db
-      .query(
-        `SELECT history.id as history_id , history.country_name as country_id, history.indicator as indicator_id, history.year, history.created_at from history where user_id = ? `,
-        [user_id]
-      )
-      .asObjects(),
-  ];
+  // const user_id = 1;
+  if (user_id) {
+    const history = [
+      ...db
+        .query(
+          `SELECT history.id as history_id , history.country_name as country_id, history.indicator as indicator_id, history.year, history.created_at from history where user_id = ? `,
+          [user_id]
+        )
+        .asObjects(),
+    ];
 
-  console.log(history);
+    server.json(history, 200);
+  } else {
+    server.json({ success: false }, 404);
+  }
 }
