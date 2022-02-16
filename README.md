@@ -20,6 +20,8 @@ Here the request will take a username and password in the body and will check it
 
 ### GET - /sessions
 
+The get sessions endpoint checks to see if a user is logged in. It checks the cookies on the server and if there is an associated user where loggedIn = true, it means If there is a user currently logged in, it will return true and false if not.
+
 ### PATCH - /sessions
 
 ### GET - /history
