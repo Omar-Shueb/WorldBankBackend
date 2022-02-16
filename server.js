@@ -36,6 +36,7 @@ app
   .post("/createaccount", (server) => postAccount(server))
   .get("/session", (server) => getSession(server))
   .patch("/session", (server) => patchSession(server))
+  .get("/history", (server) => getSearchHistory(server))
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -139,8 +140,12 @@ async function searchByCountry(server) {
   }
 
   if (country) {
+
+  
+
     const query =
       "SELECT countryname, indicatorname, year, value FROM Indicators" +
+
       countryQuery +
       indicatorQuery +
       yearQuery;
@@ -157,11 +162,29 @@ async function addSearchToHistory(server, country, indicator, year) {
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
+
+    const names = await getNamesFromCodes(country, indicator, year);
+    const values = Object.values(names);
+    console.log(values);
     db.query(
-      `INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, ?)`,
-      [user_id, country, indicator, year, now]
+      `INSERT INTO history (user_id, country_id, indicator_id, year, created_at, country_name, indicator_name) VALUES (?, ?, ?, ?, ?,?,?)`,
+      [user_id, country, indicator, year, now, values[0], values[1]]
+
+
     );
   }
+}
+async function getNamesFromCodes(country_id, indicator_id, year) {
+  let query = `SELECT DISTINCT CountryName, IndicatorName FROM indicators WHERE CountryCode = '${country_id}'`;
+  if (indicator_id) {
+    query += `AND IndicatorCode = '${indicator_id}'`;
+  }
+  if (year) {
+    query += `AND Year = '${year}'`;
+  }
+  const response = await client.queryObject(query);
+
+  return response.rows[0];
 }
 async function getSession(server) {
   try {
@@ -235,4 +258,24 @@ async function getIndicators(server) {
 
 function sortIndicators(a, b) {
   return a.indicatorname > b.indicatorname ? 1 : -1;
+}
+
+async function getSearchHistory(server) {
+  const user_id = await getCurrentUser();
+
+  console.log(user_id);
+  if (user_id) {
+    const history = [
+      ...db
+        .query(
+          `SELECT id , country_id , indicator_id , year, created_at , country_name, indicator_name from history where user_id = ? `,
+          [user_id]
+        )
+        .asObjects(),
+    ];
+
+    server.json(history, 200);
+  } else {
+    server.json({ success: false }, 404);
+  }
 }
