@@ -140,12 +140,8 @@ async function searchByCountry(server) {
   }
 
   if (country) {
-
-  
-
     const query =
       "SELECT countryname, indicatorname, year, value FROM Indicators" +
-
       countryQuery +
       indicatorQuery +
       yearQuery;
@@ -162,15 +158,12 @@ async function addSearchToHistory(server, country, indicator, year) {
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
-
     const names = await getNamesFromCodes(country, indicator, year);
     const values = Object.values(names);
     console.log(values);
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, created_at, country_name, indicator_name) VALUES (?, ?, ?, ?, ?,?,?)`,
       [user_id, country, indicator, year, now, values[0], values[1]]
-
-
     );
   }
 }
@@ -261,7 +254,7 @@ function sortIndicators(a, b) {
 }
 
 async function getSearchHistory(server) {
-  const user_id = await getCurrentUser();
+  const user_id = await getCurrentUser(server);
 
   console.log(user_id);
   if (user_id) {
