@@ -84,7 +84,7 @@ async function postLogin(server) {
       );
     }
   } catch (error) {
-    return server.json({ success: false, error: error }, 500);
+    return server.json({ success: false, error: "Username and password not recognised" }, 400);
   }
 }
 
