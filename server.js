@@ -6,7 +6,9 @@ import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
 import { Client } from "https://deno.land/x/postgres@v0.11.3/mod.ts";
 
-const client = new Client("postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar");
+const client = new Client(
+  "postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar"
+);
 await client.connect();
 
 const db = new DB("./schema/users.db");
@@ -16,7 +18,13 @@ const PORT = 8080;
 
 const corsConfig = abcCors({
   origin: true,
-  allowedHeaders: ["Authorization", "Content-Type", "Accept", "Origin", "User-Agent"],
+  allowedHeaders: [
+    "Authorization",
+    "Content-Type",
+    "Accept",
+    "Origin",
+    "User-Agent",
+  ],
   credentials: true,
 });
 
@@ -28,6 +36,7 @@ app
   .post("/createaccount", (server) => postAccount(server))
   .get("/session", (server) => getSession(server))
   .patch("/session", (server) => patchSession(server))
+  .get("/history", (server) => getSearchHistory(server))
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -36,16 +45,25 @@ async function postLogin(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json({ success: false, error: "Need to include a username and password" }, 400);
+      return server.json(
+        { success: false, error: "Need to include a username and password" },
+        400
+      );
     }
     // Get the users password stored in the database.
     const [response] = [
       ...(await db
-        .query("SELECT id, username, password_encrypted FROM users WHERE username = ?", [username])
+        .query(
+          "SELECT id, username, password_encrypted FROM users WHERE username = ?",
+          [username]
+        )
         .asObjects()),
     ];
     // evaluates to true or false if the passwords match using bcrypt.compares.
-    const authenticated = await bcrypt.compare(password, response.password_encrypted);
+    const authenticated = await bcrypt.compare(
+      password,
+      response.password_encrypted
+    );
 
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
@@ -60,7 +78,10 @@ async function postLogin(server) {
       });
       return server.json({ success: true }, 200);
     } else {
-      return server.json({ success: false, error: "Username and Password are incorrect" }, 400);
+      return server.json(
+        { success: false, error: "Username and Password are incorrect" },
+        400
+      );
     }
   } catch (error) {
     return server.json({ success: false, error: error }, 500);
@@ -71,7 +92,10 @@ async function postAccount(server) {
   try {
     const { username, password } = await server.body;
     if (!username || !password) {
-      return server.json({ success: false, error: "Need to include a username and password" }, 400);
+      return server.json(
+        { success: false, error: "Need to include a username and password" },
+        400
+      );
     }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
@@ -103,7 +127,10 @@ async function searchByCountry(server) {
   }
   if (country) {
     const query =
-      "SELECT countryname, indicatorname, year, value FROM Indicators" + countryQuery + indicatorQuery + yearQuery;
+      "SELECT countryname, indicatorname, year, value FROM Indicators" +
+      countryQuery +
+      indicatorQuery +
+      yearQuery;
     const response = await client.queryObject(query);
     const data = response.rows;
     return server.json(data, 200);
@@ -114,16 +141,14 @@ async function searchByCountry(server) {
 
 //adds the search to history table
 async function addSearchToHistory(server, country, indicator, year) {
+  console.log(country);
   const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
-    db.query(`INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, ?)`, [
-      user_id,
-      country,
-      indicator,
-      year,
-      now,
-    ]);
+    db.query(
+      `INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [user_id, country, indicator, year, now]
+    );
   }
 }
 async function getSession(server) {
@@ -198,4 +223,18 @@ async function getIndicators(server) {
 
 function sortIndicators(a, b) {
   return a.indicatorname > b.indicatorname ? 1 : -1;
+}
+
+async function getSearchHistory() {
+  const user_id = await getCurrentUser();
+  const history = [
+    ...db
+      .query(
+        `SELECT history.id as history_id , history.country_name as country_id, history.indicator as indicator_id, history.year, history.created_at from history where user_id = ? `,
+        [user_id]
+      )
+      .asObjects(),
+  ];
+
+  console.log(history);
 }
