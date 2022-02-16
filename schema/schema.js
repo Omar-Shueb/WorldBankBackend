@@ -11,15 +11,16 @@ try {
     password_encrypted TEXT NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL, 
-    admin BOOLEAN
-
+    admin INTEGER NOT NULL DEFAULT FALSE
   )`
   );
 
   await db.query(`CREATE TABLE sessions (
   uuid TEXT PRIMARY KEY,
-  created_at DATETIME NOT NULL,
   user_id INTEGER NOT NULL,
+  logged_in INTEGER NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 )`);
 

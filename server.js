@@ -34,7 +34,7 @@ app
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
   .get("/session", (server) => getSession(server))
-
+  .patch("/session", (server) => patchSession(server))
   .start({ port: PORT });
 
 console.log(`Server running on http://localhost:${PORT}`);
@@ -67,7 +67,7 @@ async function postLogin(server) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
       await db.query(
-        "INSERT INTO sessions (uuid, user_id, created_at) VALUES (?, ?, datetime('now'))",
+        "INSERT INTO sessions (uuid, user_id, logged_in, created_at, updated_at) VALUES (?, ?, TRUE, datetime('now'), datetime('now'))",
         [sessionId, response.id]
       );
       server.setCookie({
@@ -161,13 +161,35 @@ async function getSession(server) {
   }
 }
 
+async function patchSession(server) {
+  try {
+    const { sessionId } = await await server.cookies;
+    if (sessionId) {
+      await db.query(
+        `UPDATE sessions
+        SET logged_in = FALSE, updated_at = datetime('now')
+        WHERE uuid = ?`,
+        [sessionId]
+      );
+    }
+    server.setCookie({
+      name: "sessionId",
+      value: "",
+      expires: new Date(),
+    });
+    return server.json({ success: true }, 200);
+  } catch (error) {
+    return server.json({ success: false }, 500);
+  }
+}
+
 async function getCurrentUser(server) {
   try {
     const { sessionId } = await await server.cookies;
     if (sessionId) {
       const [[user_id]] = [
         ...(await db.query(
-          `SELECT user_id FROM sessions WHERE uuid = ? AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
+          `SELECT user_id FROM sessions WHERE uuid = ? AND logged_in = TRUE AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
           [sessionId]
         )),
       ];
