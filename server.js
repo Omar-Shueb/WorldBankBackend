@@ -139,11 +139,12 @@ async function searchByCountry(server) {
 
 //adds the search to history table
 async function addSearchToHistory(server, country, indicator, year) {
+  const now = Date.now();
   const user_id = await getCurrentUser(server);
   if (user_id) {
     db.query(
-      `INSERT INTO history (user_id, country_name, indicator, year) VALUES (?, ?, ?, ?)`,
-      [user_id, country, indicator, year]
+      `INSERT INTO history (user_id, country_name, indicator, year, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [user_id, country, indicator, year, now]
     );
   }
 }
