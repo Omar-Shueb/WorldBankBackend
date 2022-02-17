@@ -105,7 +105,7 @@ async function postAccount(server) {
         .query(`SELECT id from users WHERE username = ?`, [username])
         .asObjects(),
     ].length;
-    console.log(isUsernameUnique);
+
     if (isUsernameUnique) {
       return server.json(
         { success: false, error: "That username is already taken" },
