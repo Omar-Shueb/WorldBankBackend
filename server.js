@@ -128,14 +128,22 @@ async function postAccount(server) {
 async function postSearch(server) {
   // get params from the body
   const { country, indicator, year, yearEnd } = await server.body;
+  let countries = typeof country === "object" ? country.join(", ") : country;
+  let indicators =
+    typeof indicator === "object" ? indicator.join(", ") : indicator;
+
   // Format the code for postgres
-  const countryCode = country
+  const countryCode = countries
     .split(", ")
-    .map((code) => `'${code}'`)
+    .map((code) =>
+      typeof country === "object" ? `'${code}'` : code.toString()
+    )
     .join(", ");
-  const indicatorCode = indicator
+  const indicatorCode = indicators
     .split(", ")
-    .map((code) => `'${code}'`)
+    .map((code) =>
+      typeof indicator === "object" ? `'${code}'` : code.toString()
+    )
     .join(", ");
   // construct the query depending on which parameters are present
   const countryQuery = country ? `countrycode in (${countryCode})` : "";
@@ -156,6 +164,7 @@ async function postSearch(server) {
   let query =
     "SELECT countryname, indicatorname, year, value FROM indicators WHERE " +
     whereCondition.join(" AND ");
+  console.log(query);
   const response = await client.queryObject(query);
   const data = response.rows;
   addSearchToHistory(
