@@ -100,6 +100,18 @@ async function postAccount(server) {
         400
       );
     }
+    const isUsernameUnique = [
+      ...db
+        .query(`SELECT id from users WHERE username = ?`, [username])
+        .asObjects(),
+    ].length;
+
+    if (isUsernameUnique) {
+      return server.json(
+        { success: false, error: "That username is already taken" },
+        400
+      );
+    }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
     await db.query(
@@ -157,14 +169,12 @@ async function searchByCountry(server) {
 async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-
     const names = await getNamesFromCodes(country, indicator);
     const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
     console.log(values);
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
       [user_id, country, indicator, year, yearEnd, values[0], values[1]]
-
     );
   }
 }
