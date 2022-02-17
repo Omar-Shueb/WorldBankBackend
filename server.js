@@ -171,7 +171,7 @@ async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   if (user_id) {
     const names = await getNamesFromCodes(country, indicator);
     const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
-    console.log(values);
+
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
       [user_id, country, indicator, year, yearEnd, values[0], values[1]]
@@ -266,16 +266,34 @@ async function getSearchHistory(server) {
   const user_id = await getCurrentUser(server);
 
   if (user_id) {
-    const history = [
+    const isAdmin = [
       ...db
-        .query(
-          `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
-          [user_id]
-        )
+        .query(`SELECT id FROM users WHERE admin = 1 AND id = ?`, [user_id])
         .asObjects(),
-    ];
+    ].length;
 
-    server.json(history, 200);
+    if (isAdmin) {
+      const history = [
+        ...db
+          .query(
+            `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`
+          )
+          .asObjects(),
+      ];
+
+      return server.json(history, 200);
+    } else {
+      const history = [
+        ...db
+          .query(
+            `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
+            [user_id]
+          )
+          .asObjects(),
+      ];
+
+      server.json(history, 200);
+    }
   } else {
     server.json({ success: false }, 404);
   }

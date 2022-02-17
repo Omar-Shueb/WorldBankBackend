@@ -1,5 +1,5 @@
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
-
+import * as bcrypt from "https://deno.land/x/bcrypt/mod.ts";
 try {
   await Deno.remove("users.db");
 } catch {
@@ -36,4 +36,11 @@ try {
   indicator_name TEXT NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 )`);
+  const adminPassword = "admin";
+  const adminPasswordEncrypted = await bcrypt.hash(adminPassword);
+  console.log(adminPasswordEncrypted);
+  await db.query(
+    `INSERT INTO users (username, password_encrypted, created_at, updated_at, admin) VALUES (?, ?, datetime('now'),datetime('now'), 1 )`,
+    ["admin", adminPasswordEncrypted]
+  );
 }
