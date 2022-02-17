@@ -30,7 +30,7 @@ const corsConfig = abcCors({
 
 app
   .use(corsConfig)
-  .post("/search", (server) => searchByCountry(server))
+  .post("/search", (server) => postSearch(server))
   .get("indicators/:country", (server) => getIndicators(server))
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
@@ -125,44 +125,31 @@ async function postAccount(server) {
   }
 }
 
-async function searchByCountry(server) {
-  // get params from the url queries
+async function postSearch(server) {
+  // get params from the body
   const { country, indicator, year, yearEnd } = await server.body;
   // construct the query depending on which parameters are present
+  const countryQuery = country ? `countrycode in '${country}'` : "";
+  const indicatorQuery = indicator ? `indicatorcode in '${indicator}'` : "";
+  const yearQuery = year ? `year >= ${year}` : "";
+  const yearEndQuery = yearEnd ? `year <= ${yearEnd}` : "";
+  const whereCondition = [];
+  for (let q of [countryQuery, indicatorQuery, yearQuery, yearEndQuery]) {
+    if (q) {
+      whereCondition.push(q);
+    }
+  }
+  let query =
+    "SELECT countryname, indicatorname, year, value FROM indicators WHERE " +
+    whereCondition.join(" AND ");
 
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
+
+  const response = await client.queryObject(query);
+  const data = response.rows;
   await addSearchToHistory(server, country, indicator, year, yearEnd);
-  const countryQuery = ` WHERE countrycode = '${country}'`;
-  let indicatorQuery = "";
-  let yearQuery = "";
-
-  if (indicator) {
-    indicatorQuery = ` AND indicatorcode = '${indicator}'`;
-  }
-
-  if (year && !yearEnd) {
-    yearQuery = ` AND year BETWEEN ${year} AND 2015`;
-  }
-
-  if (year && yearEnd) {
-    yearQuery = ` AND year BETWEEN ${year} AND ${yearEnd}`;
-  }
-
-  if (!year && yearEnd) {
-    yearQuery = ` AND year BETWEEN 1960 AND ${yearEnd}`;
-  }
-
-  if (country) {
-    const query =
-      "SELECT countryname, indicatorname, year, value FROM Indicators" +
-      countryQuery +
-      indicatorQuery +
-      yearQuery;
-    const response = await client.queryObject(query);
-    const data = response.rows;
-    return server.json(data, 200);
-  } else {
-    return server.json(400);
-  }
+  return server.json(data, 200);
 }
 
 //adds the search to history table
