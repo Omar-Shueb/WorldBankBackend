@@ -30,7 +30,7 @@ const corsConfig = abcCors({
 
 app
   .use(corsConfig)
-  .post("/search", (server) => searchByCountry(server))
+  .post("/search", (server) => postSearch(server))
   .get("indicators/:country", (server) => getIndicators(server))
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
@@ -125,69 +125,68 @@ async function postAccount(server) {
   }
 }
 
-async function searchByCountry(server) {
-  // get params from the url queries
+async function postSearch(server) {
+  // get params from the body
   const { country, indicator, year, yearEnd } = await server.body;
   // construct the query depending on which parameters are present
-
-  await addSearchToHistory(server, country, indicator, year, yearEnd);
-  const countryQuery = ` WHERE countrycode = '${country}'`;
-  let indicatorQuery = "";
-  let yearQuery = "";
-
-  if (indicator) {
-    indicatorQuery = ` AND indicatorcode = '${indicator}'`;
+  const countryQuery = country ? `countrycode in '${country}'` : "";
+  const indicatorQuery = indicator ? `indicatorcode in '${indicator}'` : "";
+  const yearQuery = year ? `year >= ${year}` : "";
+  const yearEndQuery = yearEnd ? `year <= ${yearEnd}` : "";
+  const whereCondition = [];
+  for (let q of [countryQuery, indicatorQuery, yearQuery, yearEndQuery]) {
+    if (q) {
+      whereCondition.push(q);
+    }
   }
+  let query =
+    "SELECT countryname, indicatorname, year, value FROM indicators WHERE " +
+    whereCondition.join(" AND ");
 
-  if (year && !yearEnd) {
-    yearQuery = ` AND year BETWEEN ${year} AND 2015`;
-  }
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
 
-  if (year && yearEnd) {
-    yearQuery = ` AND year BETWEEN ${year} AND ${yearEnd}`;
-  }
-
-  if (!year && yearEnd) {
-    yearQuery = ` AND year BETWEEN 1960 AND ${yearEnd}`;
-  }
-
-  if (country) {
-    const query =
-      "SELECT countryname, indicatorname, year, value FROM Indicators" +
-      countryQuery +
-      indicatorQuery +
-      yearQuery;
-    const response = await client.queryObject(query);
-    const data = response.rows;
-    return server.json(data, 200);
-  } else {
-    return server.json(400);
-  }
+  const response = await client.queryObject(query);
+  const data = response.rows;
+  addSearchToHistory(server, country, indicator, year, yearEnd);
+  return server.json(data, 200);
 }
 
 //adds the search to history table
 async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-    const names = await getNamesFromCodes(country, indicator);
-    const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
+    const countryNames = await getCountryNames(country);
+    const indicatorNames = await getIndicatorNames(indicator);
 
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
-      [user_id, country, indicator, year, yearEnd, values[0], values[1]]
+      [user_id, country, indicator, year, yearEnd, countryNames, indicatorNames]
     );
   }
 }
-async function getNamesFromCodes(country_id, indicator_id) {
-  let query = `SELECT DISTINCT CountryName, IndicatorName FROM indicators WHERE CountryCode = '${country_id}'`;
-  if (indicator_id) {
-    query += `AND IndicatorCode = '${indicator_id}'`;
-  }
-
+async function getCountryNames(codes) {
+  let query = `SELECT DISTINCT countryname FROM indicators WHERE countrycode in '${codes}'`;
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
   const response = await client.queryObject(query);
-
-  return response.rows[0];
+  const names = response.rows.reduce((prevElement, currentElement) => {
+    return prevElement.countryname + ", " + currentElement.countryname;
+  });
+  return names;
 }
+
+async function getIndicatorNames(codes) {
+  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE indicatorcode in '${codes}'`;
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
+  const response = await client.queryObject(query);
+  const names = response.rows.reduce((prevElement, currentElement) => {
+    return prevElement.indicatorname + ", " + currentElement.indicatorname;
+  });
+  return names;
+}
+
 async function getSession(server) {
   try {
     const id = await getCurrentUser(server);
