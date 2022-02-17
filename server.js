@@ -30,7 +30,7 @@ const corsConfig = abcCors({
 
 app
   .use(corsConfig)
-  .get("/search", (server) => searchByCountry(server))
+  .post("/search", (server) => searchByCountry(server))
   .get("indicators/:country", (server) => getIndicators(server))
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
@@ -115,7 +115,7 @@ async function postAccount(server) {
 
 async function searchByCountry(server) {
   // get params from the url queries
-  const { country, indicator, year, yearEnd } = await server.queryParams;
+  const { country, indicator, year, yearEnd } = await server.body;
   // construct the query depending on which parameters are present
 
   await addSearchToHistory(server, country, indicator, year, yearEnd);
@@ -157,14 +157,12 @@ async function searchByCountry(server) {
 async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-
     const names = await getNamesFromCodes(country, indicator);
     const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
     console.log(values);
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
       [user_id, country, indicator, year, yearEnd, values[0], values[1]]
-
     );
   }
 }
