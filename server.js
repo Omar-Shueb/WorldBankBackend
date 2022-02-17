@@ -286,7 +286,7 @@ async function getSearchHistory(server) {
       const history = [
         ...db
           .query(
-            `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
+            `SELECT history.id as history_id, country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
             [user_id]
           )
           .asObjects(),
