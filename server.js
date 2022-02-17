@@ -30,7 +30,7 @@ const corsConfig = abcCors({
 
 app
   .use(corsConfig)
-  .get("/search", (server) => searchByCountry(server))
+  .post("/search", (server) => searchByCountry(server))
   .get("indicators/:country", (server) => getIndicators(server))
   .post("/login", (server) => postLogin(server))
   .post("/createaccount", (server) => postAccount(server))
@@ -127,7 +127,7 @@ async function postAccount(server) {
 
 async function searchByCountry(server) {
   // get params from the url queries
-  const { country, indicator, year, yearEnd } = await server.queryParams;
+  const { country, indicator, year, yearEnd } = await server.body;
   // construct the query depending on which parameters are present
 
   await addSearchToHistory(server, country, indicator, year, yearEnd);
