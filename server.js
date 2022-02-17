@@ -148,7 +148,7 @@ async function postSearch(server) {
 
   const response = await client.queryObject(query);
   const data = response.rows;
-  await addSearchToHistory(server, country, indicator, year, yearEnd);
+  addSearchToHistory(server, country, indicator, year, yearEnd);
   return server.json(data, 200);
 }
 
@@ -156,25 +156,37 @@ async function postSearch(server) {
 async function addSearchToHistory(server, country, indicator, year, yearEnd) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-    const names = await getNamesFromCodes(country, indicator);
-    const values = Object.values(names); // Values is an object with the keys country_name and indicator_name respectively
+    const countryNames = await getCountryNames(country);
+    const indicatorNames = await getIndicatorNames(indicator);
 
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
-      [user_id, country, indicator, year, yearEnd, values[0], values[1]]
+      [user_id, country, indicator, year, yearEnd, countryNames, indicatorNames]
     );
   }
 }
-async function getNamesFromCodes(country_id, indicator_id) {
-  let query = `SELECT DISTINCT CountryName, IndicatorName FROM indicators WHERE CountryCode = '${country_id}'`;
-  if (indicator_id) {
-    query += `AND IndicatorCode = '${indicator_id}'`;
-  }
-
+async function getCountryNames(codes) {
+  let query = `SELECT DISTINCT countryname FROM indicators WHERE countrycode in '${codes}'`;
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
   const response = await client.queryObject(query);
-
-  return response.rows[0];
+  const names = response.rows.reduce((prevElement, currentElement) => {
+    return prevElement.countryname + ", " + currentElement.countryname;
+  });
+  return names;
 }
+
+async function getIndicatorNames(codes) {
+  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE indicatorcode in '${codes}'`;
+  query = query.replaceAll("'[", "(");
+  query = query.replaceAll("]'", ")");
+  const response = await client.queryObject(query);
+  const names = response.rows.reduce((prevElement, currentElement) => {
+    return prevElement.indicatorname + ", " + currentElement.indicatorname;
+  });
+  return names;
+}
+
 async function getSession(server) {
   try {
     const id = await getCurrentUser(server);
