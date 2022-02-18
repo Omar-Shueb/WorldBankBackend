@@ -24,4 +24,8 @@ The get sessions endpoint checks to see if a user is logged in. It checks the co
 
 ### PATCH - /sessions
 
+When a user logs out, a fetch request is sent to the server to patch the sessions table. this patch request changes the logged in column to false for the logged in user.
+
 ### GET - /history
+
+The history endpoint fetches the history from the history table for the user who is currently logged in. If that user is an admin, all search history is returned to the front end.
