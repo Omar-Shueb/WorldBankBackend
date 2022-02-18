@@ -18,7 +18,7 @@ const client = new Client(
 await client.connect();
 
 const db = new Client(Deno.env.get("PG_URL"));
-await client.connect();
+await db.connect();
 
 // const db = new DB("./schema/users.db");
 
