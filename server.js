@@ -20,7 +20,7 @@ await client.connect();
 const db = new DB("./schema/users.db");
 
 const app = new Application();
-const PORT = 8080;
+const PORT = Deno.env.get("PORT");
 
 const corsConfig = abcCors({
   origin: true,
