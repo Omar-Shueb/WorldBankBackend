@@ -17,7 +17,10 @@ const client = new Client(
 );
 await client.connect();
 
-const db = new DB("./schema/users.db");
+const db = new Client(Deno.env.get("PG_URL"));
+await client.connect();
+
+// const db = new DB("./schema/users.db");
 
 const app = new Application();
 const PORT = Deno.env.get("PORT");
@@ -74,8 +77,8 @@ async function postLogin(server) {
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
-      await db.query(
-        "INSERT INTO sessions (uuid, user_id, logged_in, created_at, updated_at) VALUES (?, ?, TRUE, datetime('now'), datetime('now'))",
+      await db.queryObject(
+        "INSERT INTO sessions (uuid, user_id, logged_in, created_at, updated_at) VALUES ($1, $2, TRUE, datetime('now'), datetime('now'))",
         [sessionId, response.id]
       );
       server.setCookie({
@@ -107,9 +110,8 @@ async function postAccount(server) {
       );
     }
     const isUsernameUnique = [
-      ...db
-        .query(`SELECT id from users WHERE username = ?`, [username])
-        .asObjects(),
+      ...db.queryObject(`SELECT id from users WHERE username = $1`, [username])
+        .rows,
     ].length;
 
     if (isUsernameUnique) {
@@ -120,8 +122,8 @@ async function postAccount(server) {
     }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
-    await db.query(
-      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES (?, ?, datetime('now'), datetime('now'), FALSE)",
+    await db.queryObject(
+      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, datetime('now'), datetime('now'), FALSE)",
       [username, passwordEncrypted]
     );
     return server.json({ success: true }, 200);
@@ -198,8 +200,8 @@ async function addSearchToHistory(
   if (user_id) {
     const countryNames = await getCountryNames(countryQuery);
     const indicatorNames = await getIndicatorNames(indicatorQuery);
-    db.query(
-      `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
+    db.queryObject(
+      `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES ($1,$2,$3,$4,$5,DATETIME('now'),$6,$7)`,
       [user_id, country, indicator, year, yearEnd, countryNames, indicatorNames]
     );
   }
@@ -244,10 +246,10 @@ async function patchSession(server) {
   try {
     const { sessionId } = await await server.cookies;
     if (sessionId) {
-      await db.query(
+      await db.queryObject(
         `UPDATE sessions
         SET logged_in = FALSE, updated_at = datetime('now')
-        WHERE uuid = ?`,
+        WHERE uuid = $1`,
         [sessionId]
       );
     }
@@ -267,8 +269,8 @@ async function getCurrentUser(server) {
     const { sessionId } = await await server.cookies;
     if (sessionId) {
       const [[user_id]] = [
-        ...(await db.query(
-          `SELECT user_id FROM sessions WHERE uuid = ? AND logged_in = TRUE AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
+        ...(await db.queryObject(
+          `SELECT user_id FROM sessions WHERE uuid = $1 AND logged_in = TRUE AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
           [sessionId]
         )),
       ];
@@ -306,29 +308,25 @@ async function getSearchHistory(server) {
 
   if (user_id) {
     const isAdmin = [
-      ...db
-        .query(`SELECT id FROM users WHERE admin = 1 AND id = ?`, [user_id])
-        .asObjects(),
+      ...db.queryObject(`SELECT id FROM users WHERE admin = 1 AND id = $1`, [
+        user_id,
+      ]).rows,
     ].length;
 
     if (isAdmin) {
       const history = [
-        ...db
-          .query(
-            `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`
-          )
-          .asObjects(),
+        ...db.queryObject(
+          `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`
+        ).rows,
       ];
 
       return server.json(history, 200);
     } else {
       const history = [
-        ...db
-          .query(
-            `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = ? `,
-            [user_id]
-          )
-          .asObjects(),
+        ...db.queryObject(
+          `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = $1 `,
+          [user_id]
+        ).rows,
       ];
 
       server.json(history, 200);
