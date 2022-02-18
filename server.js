@@ -128,92 +128,100 @@ async function postAccount(server) {
 async function postSearch(server) {
   // get params from the body
   const { country, indicator, year, yearEnd } = await server.body;
-  // construct the query depending on which parameters are present
-  const countryQuery = country
-    ? `countrycode in ${JSON.stringify(country)}`
-    : "";
+  let countries = typeof country === "object" ? country.join(", ") : country;
+  let indicators =
+    typeof indicator === "object" ? indicator.join(", ") : indicator;
 
-  const indicatorQuery = indicator
-    ? `indicatorcode in ${JSON.stringify(indicator)}`
-    : "";
+  // Format the code for postgres
+  const countryCode = countries
+    .split(", ")
+    .map((code) =>
+      typeof country === "object" ? `'${code}'` : code.toString()
+    )
+    .join(", ");
+  const indicatorCode = indicators
+    .split(", ")
+    .map((code) =>
+      typeof indicator === "object" ? `'${code}'` : code.toString()
+    )
+    .join(", ");
+  // construct the query depending on which parameters are present
+  const countryQuery = country ? `countrycode in (${countryCode})` : "";
+  const indicatorQuery = indicator ? `indicatorcode in (${indicatorCode})` : "";
   const yearQuery = year ? `year >= ${year}` : "";
   const yearEndQuery = yearEnd ? `year <= ${yearEnd}` : "";
   const whereCondition = [];
-  for (let q of [countryQuery, indicatorQuery, yearQuery, yearEndQuery]) {
-    if (q) {
-      whereCondition.push(q);
+  for (let condition of [
+    countryQuery,
+    indicatorQuery,
+    yearQuery,
+    yearEndQuery,
+  ]) {
+    if (condition) {
+      whereCondition.push(condition);
     }
   }
   let query =
     "SELECT countryname, indicatorname, year, value FROM indicators WHERE " +
     whereCondition.join(" AND ");
-
-  query = query.replaceAll("[", "(");
-  query = query.replaceAll("]", ")");
-  query = query.replaceAll(`"`, `'`);
-
   const response = await client.queryObject(query);
   const data = response.rows;
-  addSearchToHistory(server, country, indicator, year, yearEnd);
+  addSearchToHistory(
+    server,
+    countryCode,
+    indicatorCode,
+    year,
+    yearEnd,
+    countryQuery,
+    indicatorQuery
+  );
   return server.json(data, 200);
 }
 
 //adds the search to history table
-async function addSearchToHistory(server, country, indicator, year, yearEnd) {
+async function addSearchToHistory(
+  server,
+  country,
+  indicator,
+  year,
+  yearEnd,
+  countryQuery,
+  indicatorQuery
+) {
   const user_id = await getCurrentUser(server);
   if (user_id) {
-    const countryNames = await getCountryNames(country);
-    const indicatorNames = await getIndicatorNames(indicator);
+    const countryNames = await getCountryNames(countryQuery);
+    const indicatorNames = await getIndicatorNames(indicatorQuery);
     db.query(
       `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES (?,?,?,?,?,DATETIME('now'),?,?)`,
-      [
-        user_id,
-        `'${JSON.stringify(country)}'`,
-        `'${JSON.stringify(indicator)}'`,
-        year,
-        yearEnd,
-        `'${countryNames}'`,
-        `'${indicatorNames}'`,
-      ]
+      [user_id, country, indicator, year, yearEnd, countryNames, indicatorNames]
     );
-  }
+  } else
+    return server.json({
+      error: true,
+      response: "You must be logged in to search",
+    });
 }
 
 async function getCountryNames(codes) {
-  let query = `SELECT DISTINCT countryname FROM indicators WHERE countrycode in ${JSON.stringify(
-    codes
-  )}`;
-  query = query.replaceAll("[", "(");
-  query = query.replaceAll("]", ")");
-  query = query.replaceAll(`"`, `'`);
+  let query = `SELECT DISTINCT countryname FROM indicators WHERE ${codes}`;
   const response = await client.queryObject(query);
-  let names = "";
-  if (response.rows.length > 1) {
-    names = response.rows.reduce((prevElement, currentElement) => {
-      return prevElement.countryname + ", " + currentElement.countryname;
-    });
-  } else {
-    names = response.rows[0].countryname;
-  }
+  const names = response.rows
+    .map((x) => {
+      return x.countryname;
+    })
+    .join(", ");
   return names;
 }
 
 async function getIndicatorNames(codes) {
-  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE indicatorcode in ${JSON.stringify(
-    codes
-  )}`;
-  query = query.replaceAll("[", "(");
-  query = query.replaceAll("]", ")");
-  query = query.replaceAll(`"`, `'`);
+  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE ${codes}`;
   const response = await client.queryObject(query);
-  let names = "";
-  if (response.rows.length > 1) {
-    names = response.rows.reduce((prevElement, currentElement) => {
-      return prevElement.indicatorname + ", " + currentElement.indicatorname;
-    });
-  } else {
-    names = response.rows[0].indicatorname;
-  }
+  const names = response.rows
+    .map((x) => {
+      return x.indicatorname;
+    })
+    .join(", ");
   return names;
 }
 
