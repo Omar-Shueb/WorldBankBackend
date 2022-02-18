@@ -20,10 +20,55 @@ await client.connect();
 const db = new Client(Deno.env.get("PG_URL"));
 await db.connect();
 
+try {
+  await db.queryObject(`DROP TABLE IF EXISTS users, sessions, history;`);
+} catch (error) {
+  console.log(error);
+}
+
+await db.queryObject(
+  `CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_encrypted TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL, 
+    admin BOOLEAN NOT NULL DEFAULT FALSE
+  )`
+);
+
+await db.queryObject(`CREATE TABLE sessions (
+  uuid TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  logged_in BOOLEAN NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  CONSTRAINT user_id FOREIGN KEY(user_id) REFERENCES users(id)
+)`);
+
+await db.queryObject(`CREATE TABLE history (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  country_id TEXT NOT NULL,
+  indicator_id TEXT,
+  year INTEGER,
+  year_end INTEGER,
+  created_at TIMESTAMP NOT NULL,
+  country_name TEXT NOT NULL,
+  indicator_name TEXT NOT NULL,
+  CONSTRAINT history FOREIGN KEY(user_id) REFERENCES users(id)
+)`);
+const adminPassword = "admin";
+const adminPasswordEncrypted = await bcrypt.hash(adminPassword);
+await db.queryObject({
+  text: `INSERT INTO users (username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, NOW()::timestamp, NOW()::timestamp, TRUE )`,
+  args: ["admin", adminPasswordEncrypted],
+});
+
 // const db = new DB("./schema/users.db");
 
 const app = new Application();
-const PORT = Deno.env.get("PORT");
+const PORT = Deno.env.get("PORT") || 80;
 
 const corsConfig = abcCors({
   origin: true,
@@ -46,9 +91,9 @@ app
   .get("/session", (server) => getSession(server))
   .patch("/session", (server) => patchSession(server))
   .get("/history", (server) => getSearchHistory(server))
-  .start({ port: PORT });
+  .start({ port: parseInt(PORT) });
 
-console.log(`Server running on ${Deno.env.get("PG_URL")}`);
+console.log(`Server running on http://localhost:"${PORT}`);
 
 async function postLogin(server) {
   try {
@@ -60,14 +105,13 @@ async function postLogin(server) {
       );
     }
     // Get the users password stored in the database.
-    const [response] = [
-      ...(await db
-        .query(
-          "SELECT id, username, password_encrypted FROM users WHERE username = ?",
-          [username]
-        )
-        .asObjects()),
-    ];
+    const [response] = (
+      await db.queryObject({
+        text: "SELECT id, username, password_encrypted FROM users WHERE username = $1",
+        args: [username],
+      })
+    ).rows;
+
     // evaluates to true or false if the passwords match using bcrypt.compares.
     const authenticated = await bcrypt.compare(
       password,
@@ -77,10 +121,10 @@ async function postLogin(server) {
     if (authenticated) {
       // generate a session token and add it to the sessions db and add a cookie.
       const sessionId = v4.generate();
-      await db.queryObject(
-        "INSERT INTO sessions (uuid, user_id, logged_in, created_at, updated_at) VALUES ($1, $2, TRUE, datetime('now'), datetime('now'))",
-        [sessionId, response.id]
-      );
+      await db.queryObject({
+        text: "INSERT INTO sessions (uuid, user_id, logged_in, created_at, updated_at) VALUES ($1, $2, TRUE, NOW()::timestamp, NOW()::timestamp)",
+        args: [sessionId, response.id],
+      });
       server.setCookie({
         name: "sessionId",
         value: sessionId,
@@ -93,6 +137,7 @@ async function postLogin(server) {
       );
     }
   } catch (error) {
+    console.log(error);
     return server.json(
       { success: false, error: "Username and password not recognised" },
       400
@@ -110,8 +155,10 @@ async function postAccount(server) {
       );
     }
     const isUsernameUnique = [
-      ...db.queryObject(`SELECT id from users WHERE username = $1`, [username])
-        .rows,
+      ...db.queryObject({
+        text: `SELECT id from users WHERE username = $1`,
+        args: [username],
+      }).rows,
     ].length;
 
     if (isUsernameUnique) {
@@ -123,7 +170,7 @@ async function postAccount(server) {
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
     await db.queryObject(
-      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, datetime('now'), datetime('now'), FALSE)",
+      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, NOW()::timestamp, NOW()::timestamp, FALSE)",
       [username, passwordEncrypted]
     );
     return server.json({ success: true }, 200);
@@ -200,16 +247,24 @@ async function addSearchToHistory(
   if (user_id) {
     const countryNames = await getCountryNames(countryQuery);
     const indicatorNames = await getIndicatorNames(indicatorQuery);
-    db.queryObject(
-      `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES ($1,$2,$3,$4,$5,DATETIME('now'),$6,$7)`,
-      [user_id, country, indicator, year, yearEnd, countryNames, indicatorNames]
-    );
+    db.queryObject({
+      text: `INSERT INTO history (user_id, country_id, indicator_id, year, year_end, created_at, country_name, indicator_name) VALUES ($1,$2,$3,$4,$5,NOW()::timestamp,$6,$7)`,
+      args: [
+        user_id,
+        country,
+        indicator,
+        year,
+        yearEnd,
+        countryNames,
+        indicatorNames,
+      ],
+    });
   }
 }
 
 async function getCountryNames(codes) {
-  let query = `SELECT DISTINCT countryname FROM indicators WHERE ${codes}`;
-  const response = await client.queryObject(query);
+  let query = `SELECT DISTINCT countryname FROM indicators WHERE $1`;
+  const response = await client.queryObject({ text: query, args: [codes] });
   const names = response.rows
     .map((x) => {
       return x.countryname;
@@ -219,8 +274,8 @@ async function getCountryNames(codes) {
 }
 
 async function getIndicatorNames(codes) {
-  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE ${codes}`;
-  const response = await client.queryObject(query);
+  let query = `SELECT DISTINCT indicatorname FROM indicators WHERE $1`;
+  const response = await client.queryObject({ text: query, args: [codes] });
   const names = response.rows
     .map((x) => {
       return x.indicatorname;
@@ -246,12 +301,12 @@ async function patchSession(server) {
   try {
     const { sessionId } = await await server.cookies;
     if (sessionId) {
-      await db.queryObject(
-        `UPDATE sessions
-        SET logged_in = FALSE, updated_at = datetime('now')
+      await db.queryObject({
+        text: `UPDATE sessions
+        SET logged_in = FALSE, updated_at = NOW()::timestamp
         WHERE uuid = $1`,
-        [sessionId]
-      );
+        args: [sessionId],
+      });
     }
     server.setCookie({
       name: "sessionId",
@@ -266,19 +321,20 @@ async function patchSession(server) {
 
 async function getCurrentUser(server) {
   try {
-    const { sessionId } = await await server.cookies;
+    const { sessionId } = await server.cookies;
     if (sessionId) {
-      const [[user_id]] = [
-        ...(await db.queryObject(
-          `SELECT user_id FROM sessions WHERE uuid = $1 AND logged_in = TRUE AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
-          [sessionId]
-        )),
-      ];
-      return user_id ? user_id : false;
+      const [user_id] = (
+        await db.queryObject({
+          text: `SELECT user_id FROM sessions WHERE uuid = $1 AND logged_in = TRUE AND EXISTS (SELECT * FROM users WHERE users.id = sessions.user_id)`,
+          args: [sessionId],
+        })
+      ).rows;
+      return user_id.user_id ? user_id.user_id : false;
     } else {
       return false;
     }
   } catch (error) {
+    console.log(error);
     return false;
   }
 }
@@ -308,25 +364,25 @@ async function getSearchHistory(server) {
 
   if (user_id) {
     const isAdmin = [
-      ...db.queryObject(`SELECT id FROM users WHERE admin = 1 AND id = $1`, [
-        user_id,
-      ]).rows,
+      ...db.queryObject({
+        text: `SELECT id FROM users WHERE admin = 1 AND id = $1`,
+        args: [user_id],
+      }).rows,
     ].length;
 
     if (isAdmin) {
       const history = [
-        ...db.queryObject(
-          `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`
-        ).rows,
+        ...db.queryObject({
+          text: `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`,
+        }).rows,
       ];
-
       return server.json(history, 200);
     } else {
       const history = [
-        ...db.queryObject(
-          `SELECT id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = $1 `,
-          [user_id]
-        ).rows,
+        ...db.queryObject({
+          text: `SELECT id as history_id , country_id , indicator_id , year, year_end, created_at , country_name, indicator_name from history where user_id = $1 `,
+          args: [user_id],
+        }).rows,
       ];
 
       server.json(history, 200);
