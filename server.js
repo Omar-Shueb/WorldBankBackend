@@ -154,12 +154,12 @@ async function postAccount(server) {
         400
       );
     }
-    const isUsernameUnique = [
-      ...db.queryObject({
+    const isUsernameUnique = (
+      await db.queryObject({
         text: `SELECT id from users WHERE username = $1`,
         args: [username],
-      }).rows,
-    ].length;
+      })
+    ).rows.length;
 
     if (isUsernameUnique) {
       return server.json(
@@ -169,10 +169,10 @@ async function postAccount(server) {
     }
     // generate encrypted password using bcrypt and store in the db.
     const passwordEncrypted = await bcrypt.hash(password);
-    await db.queryObject(
-      "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, NOW()::timestamp, NOW()::timestamp, FALSE)",
-      [username, passwordEncrypted]
-    );
+    await db.queryObject({
+      text: "INSERT INTO users(username, password_encrypted, created_at, updated_at, admin) VALUES ($1, $2, NOW()::timestamp, NOW()::timestamp, FALSE)",
+      args: [username, passwordEncrypted],
+    });
     return server.json({ success: true }, 200);
   } catch (error) {
     console.error(error);
@@ -372,9 +372,9 @@ async function getSearchHistory(server) {
 
     if (isAdmin) {
       const history = [
-        ...db.queryObject({
-          text: `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`,
-        }).rows,
+        ...db.queryObject(
+          `SELECT history.id as history_id , country_id , indicator_id, year, year_end, history.created_at, country_name, indicator_name, users.id , users.username FROM history JOIN users ON users.id = history.user_id`
+        ).rows,
       ];
       return server.json(history, 200);
     } else {
