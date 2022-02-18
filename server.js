@@ -6,6 +6,12 @@ import { v4 } from "https://deno.land/std/uuid/mod.ts";
 
 import { Client } from "https://deno.land/x/postgres@v0.11.3/mod.ts";
 
+import { config } from "https://deno.land/x/dotenv/mod.ts";
+
+const DENO_ENV = Deno.env.get("DENO_ENV") ?? "development";
+
+config({ path: `./.env.${DENO_ENV}`, export: true });
+
 const client = new Client(
   "postgres://czreijar:TJ2StTuQIl2CoRoinQTwPxk8pBGfdf6t@kandula.db.elephantsql.com/czreijar"
 );
@@ -39,7 +45,7 @@ app
   .get("/history", (server) => getSearchHistory(server))
   .start({ port: PORT });
 
-console.log(`Server running on http://localhost:${PORT}`);
+console.log(`Server running on ${Deno.env.get("PG_URL")}`);
 
 async function postLogin(server) {
   try {
