@@ -164,7 +164,6 @@ async function postSearch(server) {
   let query =
     "SELECT countryname, indicatorname, year, value FROM indicators WHERE " +
     whereCondition.join(" AND ");
-  console.log(query);
   const response = await client.queryObject(query);
   const data = response.rows;
   addSearchToHistory(
